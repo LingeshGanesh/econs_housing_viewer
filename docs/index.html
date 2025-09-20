@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CSV Grapher — 4-Panel UI</title>
+    <script type="module" crossorigin src="/assets/index-DN1WQBQN.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BGT70-cP.css">
+  </head>
+  <body>
+    <div class="page">
+      <!-- TOP: 70% height -->
+      <section class="top">
+        <div class="chart-wrap card">
+          <header class="section-head">
+            <h2>Resale Price Indexes over the Years</h2>
+            <div class="muted" id="rangeLabel">Select a range to plot</div>
+          </header>
+          <canvas id="chart"></canvas>
+        </div>
+        <aside class="controls card">
+          <h3>Time Range</h3>
+          <div class="grid">
+            <label>Start year
+              <select id="startYear"></select>
+            </label>
+            <label>End year
+              <select id="endYear"></select>
+            </label>
+            <label>Start quarter
+              <select id="startQuarter">
+                <option value="1">Q1</option>
+                <option value="2">Q2</option>
+                <option value="3">Q3</option>
+                <option value="4">Q4</option>
+              </select>
+            </label>
+            <label>End quarter
+              <select id="endQuarter">
+                <option value="1">Q1</option>
+                <option value="2">Q2</option>
+                <option value="3">Q3</option>
+                <option value="4">Q4</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <button id="btnPlot">Plot</button>
+            <button id="btnReset" class="secondary">Reset</button>
+          </div>
+        </aside>
+      </section>
+
+      <!-- BOTTOM: sentence with dropdowns -->
+      <section class="bottom">
+        <div class="one-sentence card">
+          <p class="big-sentence">
+            If you wanted to buy a resale
+            <select id="flatTypeSel"></select>
+            in
+            <select id="townSel"></select>
+            during
+            <select id="yearSel"></select>
+            <select id="quarterSel">
+              <option value="1">Q1</option>
+              <option value="2">Q2</option>
+              <option value="3">Q3</option>
+              <option value="4">Q4</option>
+            </select>
+            , it would cost you <span id="priceOut">—</span>.
+          </p>
+          <p class="small muted" id="priceHint">Select all fields to see the price.</p>
+        </div>
+      </section>
+    </div>
+
+  </body>
+</html>

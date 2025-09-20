@@ -10,6 +10,7 @@ const $ = s => document.querySelector(s);
 let chart = null;
 let graphRows = [];
 let priceRows = [];
+let currentBasePeriod = { year: 2009, quarter: 1 };
 
 (async function init(){
   const [gText, pText] = await Promise.all([
@@ -49,9 +50,11 @@ function populateYearDropdowns(){
   if(!graphRows.length) return;
   const years = Array.from(new Set(graphRows.map(r=>r.Year))).sort((a,b)=>a-b);
   $('#startYear').innerHTML = years.map(y=>`<option>${y}</option>`).join('');
-  $('#endYear').innerHTML   = years.map(y=>`<option>${y}</option>`).join('');
+  $('#endYear').innerHTML = years.map(y=>`<option>${y}</option>`).join('');
+  $('#baseYear').innerHTML = years.map(y=>`<option>${y}</option>`).join('');
   $('#startYear').value = years[0];
   $('#endYear').value = years[years.length-1];
+  $('#baseYear').value = 2009; // Default base year
 }
 
 function populatePriceSelectors(){
@@ -67,7 +70,11 @@ function populatePriceSelectors(){
 
 function attachHandlers(){
   $('#btnPlot').addEventListener('click', plotRange);
-  $('#btnReset').addEventListener('click', ()=>{ if(chart){chart.destroy(); chart=null;} $('#rangeLabel').textContent='Select a range to plot'; });
+  $('#btnReset').addEventListener('click', ()=>{ 
+    if(chart){chart.destroy(); chart=null;} 
+    $('#rangeLabel').textContent='Select a range to plot'; 
+  });
+  $('#setBase').addEventListener('click', updateBasePeriod);
   ['flatTypeSel','townSel','yearSel','quarterSel'].forEach(id=>{ const el=document.getElementById(id); el && el.addEventListener('change', updatePriceSentence); });
 }
 
@@ -80,14 +87,24 @@ function plotRange(){
   const key = (y,q)=>y*10+q;
   const A = key(startY,startQ), B = key(endY,endQ);
   const [lo,hi] = A<=B ? [A,B] : [B,A];
-  const rows = graphRows.filter(r=>key(r.Year,r.Qnum)>=lo && key(r.Year,r.Qnum)<=hi).sort((a,b)=>key(a.Year,a.Qnum)-key(b.Year,b.Qnum));
+  const rows = graphRows.filter(r=>key(r.Year,r.Qnum)>=lo && key(r.Year,r.Qnum)<=hi)
+    .sort((a,b)=>key(a.Year,a.Qnum)-key(b.Year,a.Qnum));
+  
   const labels = rows.map(r=>r.Label);
-  const realData = rows.map(r=>r.Real_RPI);
-  const nominalData = rows.map(r=>r.Nominal_RPI);
-  $('#rangeLabel').textContent = labels.length? `Plotting RPI: ${labels[0]} → ${labels[labels.length-1]}` : 'No data in range';
+  // Use new_RRPI if available, otherwise fallback to Real_RPI
+  const realData = rows.map(r => {
+    console.log(`Row ${r.Label}:`, r.new_RRPI); // Debug log
+    return r.new_RRPI !== undefined ? r.new_RRPI : r.Real_RPI;
+  });
+  const nominalData = rows.map(r => r.new_RPI !== undefined ? r.new_RPI : r.Nominal_RPI);
+  
+  $('#rangeLabel').textContent = labels.length? 
+    `Plotting RPI: ${labels[0]} → ${labels[labels.length-1]} (Base: ${currentBasePeriod.year} Q${currentBasePeriod.quarter})` : 
+    'No data in range';
+    
   drawChart(labels, [
-    { label: 'Real RPI', data: realData, borderColor: '#8344c2' },
-    { label: 'Nominal RPI', data: nominalData, borderColor: '#4c6161' }  // Added second dataset with different color
+    { label: 'Nominal RPI', data: nominalData, borderColor: '#4c6161' },
+    { label: 'Real RPI', data: realData, borderColor: '#8344c2' }
   ]);
 }
 
@@ -95,10 +112,88 @@ function drawChart(labels, datasets){
   const ctx = document.getElementById('chart');
   if(chart) chart.destroy();
   chart = new Chart(ctx, {
-    type:'line',
-    data:{ labels, datasets: datasets.map(ds=>({ ...ds, tension:.2, spanGaps:true, pointRadius:0 })) },
-    options:{ responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false }, scales:{ y:{ title:{ display:true, text:'Index (Q1 2009=100)'} } } }
+    type: 'line',
+    data: { 
+      labels, 
+      datasets: datasets.map(ds => ({ 
+        ...ds, 
+        tension: .2, 
+        spanGaps: true, 
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: ds.borderColor,      // Set point background color
+        pointBorderColor: ds.borderColor,          // Set point border color
+        pointHoverBackgroundColor: ds.borderColor, // Set hover background color
+        pointHoverBorderColor: ds.borderColor,     // Set hover border color
+        pointHoverBorderWidth: 0                   // Remove border on hover
+      })) 
+    },
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      interaction: { 
+        mode: 'index', 
+        intersect: false 
+      },
+      plugins: {
+        legend: {
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'rect',
+            boxWidth: 15,
+            boxHeight: 15,
+            generateLabels: (chart) => {
+              const datasets = chart.data.datasets;
+              return datasets.map(dataset => ({
+                text: dataset.label,
+                fillStyle: dataset.borderColor,
+                strokeStyle: dataset.borderColor,
+                lineWidth: 0,
+                index: datasets.indexOf(dataset)
+              }));
+            }
+          },
+          onClick: null // Disable legend click handling
+        }
+      },
+      scales: { 
+        y: { 
+          title: { 
+            display: true, 
+            text: 'Index (Q1 2009=100)'
+          } 
+        } 
+      } 
+    }
   });
+}
+
+function updateBasePeriod() {
+  const baseYear = Number($('#baseYear').value);
+  const baseQuarter = Number($('#baseQuarter').value);
+  
+  console.log('Updating base period to:', baseYear, 'Q' + baseQuarter); // Debug log
+  
+  const baseRow = graphRows.find(r => r.Year === baseYear && r.Qnum === baseQuarter);
+  if (!baseRow) {
+    console.log('Base row not found!'); // Debug log
+    return;
+  }
+  
+  // Calculate multipliers
+  const cpiMultiplier = 100 / baseRow.Raw_CPI;
+  const rpiMultiplier = 100 / baseRow.Nominal_RPI;
+  
+  // Update all rows with new calculations
+  graphRows = graphRows.map(row => ({
+    ...row,
+    new_CPI: row.Raw_CPI * cpiMultiplier,
+    new_RPI: row.Nominal_RPI * rpiMultiplier,
+    new_RRPI: ((row.Nominal_RPI * rpiMultiplier) / (row.Raw_CPI * cpiMultiplier)) * 100
+  }));
+  
+  currentBasePeriod = { year: baseYear, quarter: baseQuarter };
+  plotRange(); // Refresh the graph
 }
 
 function updatePriceSentence(){
